@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organic Tree Ring Growth Timer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f4f0;
+            font-family: 'Arial', sans-serif;
+        }
+
+        #timer-container {
+            position: relative;
+            width: 80vmin;
+            height: 80vmin;
+            max-width: 500px;
+            max-height: 500px;
+        }
+
+        #tree-rings {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+        }
+
+        .ring {
+            position: absolute;
+            border-radius: 50%;
+            transition: all 0.7s cubic-bezier(0.25, 0.1, 0.25, 1);
+            border-style: solid;
+        }
+
+        .ghost-ring {
+            opacity: 0.1;
+        }
+
+        .active-ring {
+            opacity: 1;
+        }
+
+        .xylem-ring {
+            border-width: 2px;
+        }
+
+        .phloem-ring {
+            border-width: 1px;
+            border-style: dashed;
+        }
+
+        .magical-ripple {
+            position: absolute;
+            border-radius: 50%;
+            border-style: solid;
+            opacity: 0;
+            transition: all 2s ease-out;
+            pointer-events: none;
+        }
+
+        .ripple-animate {
+            transform: scale(3);
+            opacity: 0;
+        }
+
+        #timer-display {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2c3e50;
+            z-index: 10;
+            text-align: center;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: -20%;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .btn:hover {
+            background-color: #45a049;
+        }
+
+        #custom-duration {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background-color: rgba(255,255,255,0.2);
+            padding: 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        #custom-duration input {
+            width: 80px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        #custom-duration select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .organic-center {
+            position: absolute;
+            width: 30%;
+            height: 30%;
+            top: 35%;
+            left: 35%;
+            background: radial-gradient(
+                circle at center, 
+                rgba(255,140,0,0.9) 0%, 
+                rgba(255,165,0,0.7) 50%, 
+                rgba(210,105,30,0.5) 100%
+            );
+            border-radius: 50%;
+            box-shadow: 0 0 20px rgba(255,140,0,0.5);
+            z-index: 5;
+            transition: all 0.5s ease;
+        }
+
+        .organic-center.pulsate {
+            transform: scale(1.2);
+            box-shadow: 0 0 40px rgba(255,140,0,0.8);
+        }
+    </style>
+</head>
+<body>
+    <div id="timer-container">
+        <div id="tree-rings"></div>
+        <div id="timer-display">00:00</div>
+        <div class="organic-center"></div>
+        <div id="controls">
+            <div id="custom-duration">
+                <input type="number" id="duration-input" min="1" value="5" placeholder="Duration">
+                <select id="time-unit">
+                    <option value="60">Minutes</option>
+                    <option value="1">Seconds</option>
+                </select>
+            </div>
+            <button id="start-btn" class="btn">Start Timer</button>
+        </div>
+    </div>
+
+    <script>
+        class TreeRingTimer {
+            constructor() {
+                this.ringsContainer = document.getElementById('tree-rings');
+                this.timerDisplay = document.getElementById('timer-display');
+                this.startBtn = document.getElementById('start-btn');
+                this.durationInput = document.getElementById('duration-input');
+                this.timeUnitSelector = document.getElementById('time-unit');
+                this.organicCenter = document.querySelector('.organic-center');
+                
+                this.rings = [];
+                this.isRunning = false;
+                this.timeRemaining = 0;
+                this.totalDuration = 0;
+
+                this.setupEventListeners();
+            }
+
+            setupEventListeners() {
+                this.startBtn.addEventListener('click', () => this.toggleTimer());
+                this.durationInput.addEventListener('change', () => this.reset());
+                this.timeUnitSelector.addEventListener('change', () => this.reset());
+            }
+
+            toggleTimer() {
+                if (this.isRunning) {
+                    this.pauseTimer();
+                } else {
+                    this.startTimer();
+                }
+            }
+
+            startTimer() {
+                if (this.timeRemaining <= 0) {
+                    this.reset();
+                }
+
+                // Calculate total duration based on input and unit
+                const inputDuration = parseInt(this.durationInput.value);
+                const unitMultiplier = parseInt(this.timeUnitSelector.value);
+                this.totalDuration = inputDuration * unitMultiplier;
+                this.timeRemaining = this.totalDuration;
+                
+                this.isRunning = true;
+                this.startBtn.textContent = 'Pause';
+                this.createFullGhostTree();
+                this.startInterval();
+                this.startRingGrowth();
+            }
+
+            pauseTimer() {
+                this.isRunning = false;
+                this.startBtn.textContent = 'Resume';
+                clearInterval(this.timerInterval);
+                clearInterval(this.ringInterval);
+            }
+
+            reset() {
+                clearInterval(this.timerInterval);
+                clearInterval(this.ringInterval);
+                this.timeRemaining = 0;
+                this.updateDisplay();
+                this.clearRings();
+                this.isRunning = false;
+                this.startBtn.textContent = 'Start Timer';
+                this.organicCenter.classList.remove('pulsate');
+            }
+
+            startInterval() {
+                this.timerInterval = setInterval(() => {
+                    this.timeRemaining--;
+                    this.updateDisplay();
+
+                    if (this.timeRemaining <= 0) {
+                        this.completeTimer();
+                    }
+                }, 1000);
+            }
+
+            updateDisplay() {
+                const hours = Math.floor(this.timeRemaining / 3600);
+                const minutes = Math.floor((this.timeRemaining % 3600) / 60);
+                const seconds = this.timeRemaining % 60;
+                
+                let displayText = '';
+                if (hours > 0) {
+                    displayText += `${hours.toString().padStart(2, '0')}:`;
+                }
+                displayText += `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                
+                this.timerDisplay.textContent = displayText;
+            }
+
+            createFullGhostTree() {
+                const containerSize = this.ringsContainer.clientWidth;
+                
+                // Create ghost rings for full tree structure
+                for (let ringCount = 0; ringCount < this.totalDuration; ringCount++) {
+                    this.createGhostRings(containerSize, ringCount);
+                }
+            }
+
+            createGhostRings(containerSize, ringCount) {
+                // Create both xylem and phloem ghost rings
+                const xylemRing = this.createSingleRing(containerSize, ringCount, 'xylem', true);
+                const phloemRing = this.createSingleRing(containerSize, ringCount, 'phloem', true);
+                
+                this.rings.push(xylemRing, phloemRing);
+            }
+
+            startRingGrowth() {
+                const containerSize = this.ringsContainer.clientWidth;
+                let currentRingCount = this.totalDuration - 1;
+
+                this.ringInterval = setInterval(() => {
+                    if (currentRingCount < 0) {
+                        clearInterval(this.ringInterval);
+                        return;
+                    }
+
+                    // Activate the rings for the current time point
+                    this.activateRingsAtTime(containerSize, currentRingCount);
+                    currentRingCount--;
+                }, 1000);
+            }
+
+            activateRingsAtTime(containerSize, ringCount) {
+                // Find and activate the rings corresponding to this time point
+                const rings = this.rings.filter(ring => 
+                    ring.dataset.ringIndex == ringCount && ring.classList.contains('ghost-ring')
+                );
+
+                rings.forEach(ring => {
+                    ring.classList.remove('ghost-ring');
+                    ring.classList.add('active-ring');
+                });
+            }
+
+            createSingleRing(containerSize, ringCount, type, isGhost = false) {
+                const ring = document.createElement('div');
+                ring.classList.add('ring', `${type}-ring`);
+                
+                // Add ghost class if it's a pre-created ring
+                if (isGhost) {
+                    ring.classList.add('ghost-ring');
+                }
+
+                // Store ring index for later activation
+                ring.dataset.ringIndex = ringCount;
+                ring.dataset.type = type;
+
+                // Calculate base size with seasonal growth pattern
+                const baseSize = (ringCount + 1) / this.totalDuration * containerSize;
+                
+                // Add natural variations
+                const seasonalVariation = this.getSeasonalGrowthFactor(ringCount);
+                const noise = (Math.random() - 0.5) * 0.15; // Reduced noise for more realistic growth
+                const size = baseSize * (1 + noise) * seasonalVariation;
+
+                ring.style.width = `${size}px`;
+                ring.style.height = `${size}px`;
+                ring.style.left = `${(containerSize - size) / 2}px`;
+                ring.style.top = `${(containerSize - size) / 2}px`;
+
+                // Color and style based on ring type and growth
+                if (type === 'xylem') {
+                    const brownIntensity = 139 - (ringCount / this.totalDuration * 50);
+                    const greenIntensity = 69 + (ringCount / this.totalDuration * 50);
+                    ring.style.borderColor = `rgba(${brownIntensity}, ${greenIntensity}, 0, ${isGhost ? 0.1 : 0.3})`;
+                } else {
+                    const greenIntensity = 50 + (ringCount / this.totalDuration * 50);
+                    ring.style.borderColor = `rgba(0, ${greenIntensity}, 0, ${isGhost ? 0.05 : 0.2})`;
+                }
+
+                this.ringsContainer.appendChild(ring);
+
+                return ring;
+            }
+
+            getSeasonalGrowthFactor(ringCount) {
+                // Simulate seasonal growth variations
+                // Growth is not uniform - peaks in spring/summer, slows in autumn/winter
+                const position = ringCount / this.totalDuration;
+                
+                // Sine wave to simulate seasonal growth
+                // Peaks at ~0.25 (spring) and ~0.75 (summer)
+                return 0.8 + 0.2 * Math.sin(position * Math.PI * 2);
+            }
+
+            clearRings() {
+                this.rings.forEach(ring => ring.remove());
+                this.rings = [];
+            }
+
+            completeTimer() {
+                clearInterval(this.timerInterval);
+                clearInterval(this.ringInterval);
+                this.timerDisplay.textContent = 'Complete!';
+                this.startBtn.textContent = 'Reset';
+                this.isRunning = false;
+                this.createMagicalRipple();
+                this.organicCenter.classList.add('pulsate');
+            }
+
+            createMagicalRipple() {
+                const containerSize = this.ringsContainer.clientWidth;
+                const rippleCount = 7;
+                
+                for (let i = 0; i < rippleCount; i++) {
+                    const ripple = document.createElement('div');
+                    ripple.classList.add('ring', 'magical-ripple');
+                    
+                    // Calculate size and timing
+                    const baseSize = containerSize * (1 + i * 0.2);
+                    const delay = i * 200; // Staggered delay
+                    
+                    ripple.style.width = `${baseSize}px`;
+                    ripple.style.height = `${baseSize}px`;
+                    ripple.style.left = `${(containerSize - baseSize) / 2}px`;
+                    ripple.style.top = `${(containerSize - baseSize) / 2}px`;
+                    
+                    // Magical color and opacity - more organic, orange-based palette
+                    const hue = 20 + i * 15; // Ranging from orange to reddish-orange
+                    const saturation = 100 - i * 10; // Decreasing saturation
+                    ripple.style.borderColor = `hsla(${hue}, ${saturation}%, 50%, 0.5)`;
+                    
+                    this.ringsContainer.appendChild(ripple);
+                    
+                    // Trigger animation with delay
+                    setTimeout(() => {
+                        ripple.classList.add('ripple-animate');
+                    }, delay);
+                    
+                    // Remove ripple after animation
+                    setTimeout(() => {
+                        this.ringsContainer.removeChild(ripple);
+                    }, 2000);
+                }
+            }
+        }
+
+        // Initialize the timer
+        const timer = new TreeRingTimer();
+    </script>
+</body>
+</html>
